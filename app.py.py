@@ -1,0 +1,96 @@
+from flask import Flask, request, jsonify
+from datetime import datetime
+import sqlite3
+
+app = Flask(__name__)
+
+# --- Initialize DB (run this once to set up tables) ---
+def init_db():
+    conn = sqlite3.connect('quickservice.db')
+    c = conn.cursor()
+    
+    # Table for cab bookings
+    c.execute('''CREATE TABLE IF NOT EXISTS cab_bookings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        emp_id TEXT,
+        date TEXT,
+        time TEXT,
+        pickup TEXT,
+        drop_loc TEXT,
+        approved TEXT,
+        status TEXT
+    )''')
+    
+    # Table for food orders
+    c.execute('''CREATE TABLE IF NOT EXISTS food_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        emp_id TEXT,
+        items TEXT,
+        address TEXT,
+        order_time TEXT
+    )''')
+
+    conn.commit()
+    conn.close()
+
+# Uncomment below line and run once to create the database
+# init_db()
+
+# --- API: Cab Booking Submission ---
+@app.route('/submit_cab', methods=['POST'])
+def submit_cab():
+    data = request.json
+    emp_id = data.get('emp_id')
+    date = data.get('date')
+    time = data.get('time')
+    pickup = data.get('pickup')
+    drop = data.get('drop')
+
+    hour = int(time.split(":")[0])
+    approved = "Auto-Approved" if hour >= 20 or hour < 6 else "Pending Approval"
+    
+    conn = sqlite3.connect('quickservice.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO cab_bookings (emp_id, date, time, pickup, drop_loc, approved, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              (emp_id, date, time, pickup, drop, approved, 'Booked'))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Cab Booking Recorded", "approval": approved, "cab_number": "WB-22-CAB-4051"})
+
+# --- API: Update Cab Status ---
+@app.route('/update_cab_status', methods=['POST'])
+def update_cab_status():
+    data = request.json
+    emp_id = data.get('emp_id')
+    new_status = data.get('status')
+
+    conn = sqlite3.connect('quickservice.db')
+    c = conn.cursor()
+    c.execute('UPDATE cab_bookings SET status = ? WHERE emp_id = ? ORDER BY id DESC LIMIT 1', (new_status, emp_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": f"Cab status updated to {new_status}."})
+
+# --- API: Place Food Order ---
+@app.route('/place_order', methods=['POST'])
+def place_order():
+    data = request.json
+    emp_id = data.get('emp_id')
+    items = ','.join(data.get('items', []))
+    address = data.get('address')
+    order_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = sqlite3.connect('quickservice.db')
+    c = conn.cursor()
+    c.execute('INSERT INTO food_orders (emp_id, items, address, order_time) VALUES (?, ?, ?, ?)',
+              (emp_id, items, address, order_time))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Food order placed successfully!"})
+
+# --- Run App ---
+if __name__ == '__main__':
+    app.run(debug=True)

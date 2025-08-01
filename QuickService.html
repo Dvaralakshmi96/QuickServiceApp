@@ -1,0 +1,109 @@
+<script>
+    function showSection(id) {
+        const sections = document.querySelectorAll('.section');
+        sections.forEach(s => s.classList.remove('visible'));
+        document.getElementById(id).classList.add('visible');
+    }
+
+    let globalEmpId = '';
+    const cart = [];
+
+    function goToHome() {
+        const empId = document.getElementById("empId").value;
+        if (empId) {
+            globalEmpId = empId;
+            document.getElementById("showEmpId").innerText = empId;
+            showSection("homeSection");
+        }
+    }
+
+    function checkApproval() {
+        const date = document.getElementById("cabDate").value;
+        const time = document.getElementById("cabTime").value;
+        const pickup = document.getElementById("pickupLocation").value;
+        const drop = document.getElementById("dropLocation").value;
+
+        if (!date || !time || !pickup || !drop) {
+            alert("Please fill all cab details.");
+            return;
+        }
+
+        fetch('/submit_cab', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                emp_id: globalEmpId,
+                date: date,
+                time: time,
+                pickup: pickup,
+                drop: drop
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("approvalResult").innerText = data.approval;
+            showSection("approvalStatus");
+        })
+        .catch(err => alert("Cab booking failed."));
+    }
+
+    function updateStatus(status) {
+        fetch('/update_cab_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                emp_id: globalEmpId,
+                status: status === 'boarded' ? 'Employee Boarded' : 'Employee Dropped'
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (status === 'boarded') showSection("liveStatus");
+            else showSection("finalStatus");
+        })
+        .catch(err => alert("Failed to update status."));
+    }
+
+    function addToCart() {
+        const items = document.querySelectorAll('#foodSection input[type="checkbox"]:checked');
+        const cartList = document.getElementById("cartItems");
+        cartList.innerHTML = "";
+        cart.length = 0;
+
+        items.forEach(i => {
+            cart.push(i.value);
+            const li = document.createElement("li");
+            li.innerText = i.value;
+            cartList.appendChild(li);
+        });
+
+        if (cart.length > 0) {
+            showSection("cartSection");
+        } else {
+            alert("Select at least one food item.");
+        }
+    }
+
+    function placeOrder() {
+        const addr = document.getElementById("deliveryAddress").value;
+        if (!addr || cart.length === 0) {
+            alert("Please enter address and select items.");
+            return;
+        }
+
+        fetch('/place_order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                emp_id: globalEmpId,
+                items: cart,
+                address: addr
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            showSection("confirmationSection");
+        })
+        .catch(err => alert("Order failed."));
+    }
+</script>
